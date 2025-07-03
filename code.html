@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Book Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text&family=Raleway&family=Roboto&family=Source+Code+Pro&display=swap');
+        
+        .book-container {
+            perspective: 2000px;
+            padding: 40px 0;
+        }
+        
+        .book {
+            width: 90%;
+            max-width: 800px;
+            height: 500px;
+            position: relative;
+            margin: 0 auto;
+            transform-style: preserve-3d;
+            transition: transform 0.8s;
+        }
+        
+        .page {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: white;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            overflow-y: auto;
+            backface-visibility: hidden;
+            transition: transform 0.8s ease-in-out;
+        }
+        
+        .page-content {
+            height: 100%;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .page-left {
+            z-index: 2;
+            transform-origin: right center;
+        }
+        
+        .page-right {
+            z-index: 1;
+            transform-origin: left center;
+        }
+        
+        .page-turn {
+            position: absolute;
+            width: 50px;
+            height: 100px;
+            top: 50%;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: background 0.3s;
+        }
+        
+        .page-turn:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .prev-page {
+            left: 20px;
+        }
+        
+        .next-page {
+            right: 20px;
+        }
+        
+        .flipped {
+            transform: rotateY(180deg) translateX(1px);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .admin-controls {
+            transition: all 0.3s ease;
+        }
+        
+        .editor-toolbar {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        #addPageBtn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        #addPageBtn:hover {
+            background: rgba(0,0,0,0.9);
+        }
+        
+        .font-serif {
+            font-family: 'Crimson Text', serif;
+        }
+        
+        .font-sans {
+            font-family: 'Raleway', sans-serif;
+        }
+        
+        .font-mono {
+            font-family: 'Source Code Pro', monospace;
+        }
+        
+        @media (max-width: 768px) {
+            .book {
+                height: 70vh;
+            }
+            
+            .page {
+                padding: 20px;
+            }
+            
+            .editor-toolbar {
+                flex-wrap: wrap;
+                bottom: 10px;
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <button id="addPageBtn" class="admin-controls hidden">Add Page</button>
+    <button id="adminModeBtn" class="bg-gray-600 text-white px-4 py-2 rounded fixed top-20 right-20 z-100">Admin Mode</button>
+    
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">Interactive Book</h1>
+        
+        <div class="book-container">
+            <div class="book">
+                <!-- Pages will be dynamically added here -->
+            </div>
+            
+            <div class="page-turn prev-page" id="prevBtn">‹</div>
+            <div class="page-turn next-page" id="nextBtn">›</div>
+        </div>
+        
+        <div class="flex justify-center mt-8">
+            <button id="adminLoginBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">Admin Login</button>
+        </div>
+    </div>
+    
+    <div class="editor-toolbar admin-controls hidden">
+        <select id="fontSelector" class="px-3 py-2 rounded border">
+            <option value="font-serif">Serif</option>
+            <option value="font-sans">Sans-Serif</option>
+            <option value="font-mono">Monospace</option>
+        </select>
+        
+        <select id="fontSizeSelector" class="px-3 py-2 rounded border">
+            <option value="text-sm">Small</option>
+            <option value="text-base" selected>Medium</option>
+            <option value="text-lg">Large</option>
+            <option value="text-xl">Extra Large</option>
+        </select>
+        
+        <button id="saveChangesBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save Changes</button>
+        <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">Logout</button>
+    </div>
+    
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h2 class="text-2xl font-bold mb-4">Admin Login</h2>
+            <div class="mb-4">
+                <label class="block mb-2">Password</label>
+                <input type="password" id="adminPassword" class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="cancelLoginBtn" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                <button id="confirmLoginBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Login</button>
+            </div>
+            <p id="loginError" class="mt-2 text-red-600 hidden">Incorrect password</p>
+        </div>
+    </div>
+    
+    <div id="textEditor" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h2 class="text-2xl font-bold mb-4">Edit Page Content</h2>
+            <textarea id="pageContent" class="w-full h-40 border rounded p-2"></textarea>
+            <div class="flex justify-end gap-2 mt-4">
+                <button id="saveContentBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save</button>
+                <button id="cancelEditBtn" class="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Book data structure
+        const bookData = {
+            pages: [
+                {
+                    content: "<h1 class='text-3xl font-bold mb-4'>Welcome to the Book</h1><p class='mb-4'>This is the first page of your interactive book experience. Turn the pages by clicking the arrows or swiping on mobile.</p><img src='https://placehold.co/600x400' alt='Open book on a wooden table with sunlight streaming through a window' class='rounded-lg shadow my-4 mx-auto'/>",
+                    fontClass: "font-serif",
+                    sizeClass: "text-base"
+                },
+                {
+                    content: "<h2 class='text-2xl font-bold mb-4'>Chapter 1</h2><p class='mb-4'>Here begins our story. The pages turn smoothly with CSS 3D transitions.</p><div class='bg-blue-100 p-4 rounded-lg my-2 border-l-4 border-blue-500'><p>The editor allows you to customize fonts and sizes.</p></div>",
+                    fontClass: "font-serif",
+                    sizeClass: "text-base"
+                },
+                {
+                    content: "<h2 class='text-2xl font-bold mb-4'>Page 3</h2><p class='mb-4'>This page demonstrates the responsive design of our book interface.</p><div class='grid grid-cols-2 gap-4 mt-4'><div class='bg-green-100 p-3 rounded-lg'><p>Left column content</p></div><div class='bg-yellow-100 p-3 rounded-lg'><p>Right column content</p></div></div>",
+                    fontClass: "font-serif",
+                    sizeClass: "text-base"
+                }
+            ],
+            currentPage: 0,
+            adminActive: false,
+            editMode: false
+        };
+        
+        // DOM Elements
+        const bookElement = document.querySelector('.book');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const adminLoginBtn = document.getElementById('adminLoginBtn');
+        const loginModal = document.getElementById('loginModal');
+        const confirmLoginBtn = document.getElementById('confirmLoginBtn');
+        const cancelLoginBtn = document.getElementById('cancelLoginBtn');
+        const adminPassword = document.getElementById('adminPassword');
+        const loginError = document.getElementById('loginError');
+        const addPageBtn = document.getElementById('addPageBtn');
+        const fontSelector = document.getElementById('fontSelector');
+        const fontSizeSelector = document.getElementById('fontSizeSelector');
+        const saveChangesBtn = document.getElementById('saveChangesBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const textEditor = document.getElementById('textEditor');
+        const pageContent = document.getElementById('pageContent');
+        const saveContentBtn = document.getElementById('saveContentBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const adminModeBtn = document.getElementById('adminModeBtn');
+        
+        // Initialize the book
+        function initBook() {
+            renderPages();
+            updateNavButtons();
+        }
+        
+        // Render all pages
+        function renderPages() {
+            bookElement.innerHTML = '';
+            
+            bookData.pages.forEach((page, index) => {
+                const pageElement = document.createElement('div');
+                pageElement.className = `page ${index % 2 === 0 ? 'page-left' : 'page-right'} ${page.fontClass} ${page.sizeClass}`;
+                pageElement.dataset.pageIndex = index;
+                
+                const contentElement = document.createElement('div');
+                contentElement.className = 'page-content';
+                contentElement.innerHTML = page.content;
+                
+                pageElement.appendChild(contentElement);
+                bookElement.appendChild(pageElement);
+                
+                // Make even-numbered pages appear on the left
+                if (index % 2 === 0) {
+                    pageElement.style.transform = `rotateY(0deg) translateX(${index === 0 ? 0 : '1px'})`;
+                } else {
+                    pageElement.style.transform = `rotateY(0deg) translateX(-1px)`;
+                }
+                
+                // Hide all pages except the first two
+                pageElement.style.display = index <= 1 ? 'block' : 'none';
+            });
+            
+            // Position pages correctly for the current view
+            updatePagePositions();
+        }
+        
+        // Update navigation buttons based on current page
+        function updateNavButtons() {
+            prevBtn.style.display = bookData.currentPage > 0 ? 'block' : 'none';
+            nextBtn.style.display = bookData.currentPage < bookData.pages.length - 1 ? 'block' : 'none';
+        }
+        
+        // Update page positions and visibility for the current view
+        function updatePagePositions() {
+            bookData.pages.forEach((page, index) => {
+                const pageElement = document.querySelector(`.page[data-page-index="${index}"]`);
+                
+                if (!pageElement) return;
+                
+                // Show the current spread (2 pages)
+                if (index === bookData.currentPage || index === bookData.currentPage + 1) {
+                    pageElement.style.display = 'block';
+                } else {
+                    pageElement.style.display = 'none';
+                }
+                
+                // Flip pages that are before the current page
+                if (index < bookData.currentPage) {
+                    pageElement.classList.add('flipped');
+                } else {
+                    pageElement.classList.remove('flipped');
+                }
+                
+                // Position the current spread correctly
+                if (index % 2 === 0) {
+                    pageElement.style.transform = `rotateY(${index < bookData.currentPage ? 180 : 0}deg) translateX(${index === 0 ? 0 : '1px'})`;
+                } else {
+                    pageElement.style.transform = `rotateY(${index < bookData.currentPage ? 180 : 0}deg) translateX(-1px)`;
+                }
+            });
+        }
+        
+        // Go to previous page
+        function goToPrevPage() {
+            if (bookData.currentPage > 0) {
+                bookData.currentPage--;
+                updateNavButtons();
+                updatePagePositions();
+            }
+        }
+        
+        // Go to next page
+        function goToNextPage() {
+            if (bookData.currentPage < bookData.pages.length - 1) {
+                bookData.currentPage++;
+                updateNavButtons();
+                updatePagePositions();
+            }
+        }
+        
+        // Toggle admin controls
+        function toggleAdminControls(show) {
+            const adminControls = document.querySelectorAll('.admin-controls');
+            adminControls.forEach(control => {
+                control.classList.toggle('hidden', !show);
+            });
+            
+            if (show) {
+                // Initialize font selectors with current page settings
+                const currentPage = bookData.pages[bookData.currentPage];
+                fontSelector.value = currentPage.fontClass;
+                fontSizeSelector.value = currentPage.sizeClass;
+                adminModeBtn.classList.add('bg-red-600'); // Change button color to red
+            } else {
+                adminModeBtn.classList.remove('bg-red-600'); // Reset button color
+            }
+        }
+        
+        // Handle swipe events for mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        bookElement.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+        
+        bookElement.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+        
+        function handleSwipe() {
+            if (touchStartX - touchEndX > 100) {
+                // Swipe left - next page
+                goToNextPage();
+            }
+            
+            if (touchEndX - touchStartX > 100) {
+                // Swipe right - previous page
+                goToPrevPage();
+            }
+        }
+        
+        // Add a new page
+        function addPage() {
+            const newPage = {
+                content: "<h2 class='text-2xl font-bold mb-4'>New Page</h2><p>This is a newly added page. You can edit its content in admin mode.</p>",
+                fontClass: "font-serif",
+                sizeClass: "text-base"
+            };
+            
+            bookData.pages.push(newPage);
+            renderPages();
+            
+            // Go to the new page
+            bookData.currentPage = bookData.pages.length - 1;
+            updateNavButtons();
+            updatePagePositions();
+        }
+        
+        // Save changes to the current page
+        function saveChanges() {
+            const currentPageIndex = bookData.currentPage;
+            bookData.pages[currentPageIndex].fontClass = fontSelector.value;
+            bookData.pages[currentPageIndex].sizeClass = fontSizeSelector.value;
+            
+            const pageElement = document.querySelector(`.page[data-page-index="${currentPageIndex}"]`);
+            if (pageElement) {
+                pageElement.className = `page ${currentPageIndex % 2 === 0 ? 'page-left' : 'page-right'} ${fontSelector.value} ${fontSizeSelector.value}`;
+            }
+            
+            // Show a success message (you could enhance this with a proper toast notification)
+            alert('Changes saved!');
+        }
+        
+        // Open text editor for the current page
+        function openTextEditor() {
+            const currentPage = bookData.pages[bookData.currentPage];
+            pageContent.value = currentPage.content; // Load current content into the editor
+            textEditor.classList.remove('hidden'); // Show the text editor
+        }
+        
+        // Save edited content
+        function saveEditedContent() {
+            const currentPageIndex = bookData.currentPage;
+            bookData.pages[currentPageIndex].content = pageContent.value; // Update content
+            renderPages(); // Re-render pages to reflect changes
+            textEditor.classList.add('hidden'); // Hide the text editor
+        }
+        
+        // Event Listeners
+        prevBtn.addEventListener('click', goToPrevPage);
+        nextBtn.addEventListener('click', goToNextPage);
+        
+        adminLoginBtn.addEventListener('click', () => {
+            loginModal.classList.remove('hidden');
+        });
+        
+        confirmLoginBtn.addEventListener('click', () => {
+            if (adminPassword.value === "
